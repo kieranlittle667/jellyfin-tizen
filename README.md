@@ -1,3 +1,9 @@
+# Accessibility development fork
+
+This fork prepares a Samsung Voice Guide build. See [ACCESSIBILITY.md](ACCESSIBILITY.md)
+for changes, reproducible build instructions and the TV verification checklist.
+See [VALIDATION.md](VALIDATION.md) for tested behaviour and remaining hardware checks.
+
 <h1 align="center">Jellyfin for Tizen</h1>
 <h3 align="center">Part of the <a href="https://jellyfin.org">Jellyfin Project</a></h3>
 

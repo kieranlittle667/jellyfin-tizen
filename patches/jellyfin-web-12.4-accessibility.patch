@@ -1,0 +1,729 @@
+diff --git a/src/apps/legacy/controllers/itemDetails/index.html b/src/apps/legacy/controllers/itemDetails/index.html
+index 36da067..2a89f14 100644
+--- a/src/apps/legacy/controllers/itemDetails/index.html
++++ b/src/apps/legacy/controllers/itemDetails/index.html
+@@ -112,7 +112,7 @@
+                     <div class="detailSectionContent">
+                         <p class="itemGenres"></p>
+                         <h3 class="tagline"></h3>
+-                        <p class="overview"></p>
++                        <p class="overview focusable" tabindex="0"></p>
+                         <div class="overview-controls">
+                             <a class="overview-expand hide" is="emby-linkbutton" href="#">${ShowMore}</a>
+                         </div>
+diff --git a/src/apps/legacy/controllers/playback/video/index.html b/src/apps/legacy/controllers/playback/video/index.html
+index 57b1109..534b633 100644
+--- a/src/apps/legacy/controllers/playback/video/index.html
++++ b/src/apps/legacy/controllers/playback/video/index.html
+@@ -22,7 +22,7 @@ <h3 class="osdTitle"></h3>
+                 <div class="osdTextContainer startTimeText osdPositionText" style="margin: 0 .25em 0 0;"></div>
+                 <div class="sliderContainer flex-grow" style="margin: .5em 0 .25em;">
+                     <div class="sliderMarkerContainer"></div>
+-                    <input type="range" step=".01" min="0" max="100" value="0" is="emby-slider" class="osdPositionSlider" data-slider-keep-progress="true" />
++                    <input type="range" step=".01" min="0" max="100" value="0" is="emby-slider" class="osdPositionSlider" aria-label="${TitlePlayback}" data-slider-keep-progress="true" />
+                 </div>
+                 <div class="osdTextContainer endTimeText osdDurationText" style="margin: 0 0 0 .25em;"></div>
+             </div>
+@@ -81,7 +81,7 @@ <h3 class="osdTitle"></h3>
+                         <span class="xlargePaperIconButton material-icons volume_up" aria-hidden="true"></span>
+                     </button>
+                     <div class="sliderContainer osdVolumeSliderContainer">
+-                        <input is="emby-slider" type="range" step="1" min="0" max="100" value="0" class="osdVolumeSlider" />
++                        <input is="emby-slider" type="range" step="1" min="0" max="100" value="0" class="osdVolumeSlider" aria-label="${VoiceGuideVolume}" />
+                     </div>
+                 </div>
+                 <button is="paper-icon-button-light" class="btnVideoOsdSettings autoSize" title="${Settings}">
+diff --git a/src/apps/legacy/controllers/playback/video/index.js b/src/apps/legacy/controllers/playback/video/index.js
+index add9be8..4359120 100644
+--- a/src/apps/legacy/controllers/playback/video/index.js
++++ b/src/apps/legacy/controllers/playback/video/index.js
+@@ -497,10 +497,10 @@ export default function (view) {
+         icon.classList.remove('fullscreen_exit', 'fullscreen');
+ 
+         if (playbackManager.isFullscreen(currentPlayer)) {
+-            button.setAttribute('title', globalize.translate('ExitFullscreen') + ' (F)');
++            dom.setElementTitle(button, globalize.translate('ExitFullscreen') + ' (F)', globalize.translate('ExitFullscreen'));
+             icon.classList.add('fullscreen_exit');
+         } else {
+-            button.setAttribute('title', globalize.translate('Fullscreen') + ' (F)');
++            dom.setElementTitle(button, globalize.translate('Fullscreen') + ' (F)', globalize.translate('Fullscreen'));
+             icon.classList.add('fullscreen');
+         }
+     }
+@@ -792,6 +792,11 @@ export default function (view) {
+     }
+ 
+     function updateTimeDisplay(positionTicks, runtimeTicks, playbackStartTimeTicks, playbackRate, bufferedRanges) {
++        if (nowPlayingPositionSlider && !nowPlayingPositionSlider.dragging) {
++            const position = datetime.getDisplayRunningTime(Math.max(0, positionTicks || 0));
++            const duration = datetime.getDisplayRunningTime(Math.max(0, runtimeTicks || 0));
++            nowPlayingPositionSlider.setAttribute('aria-valuetext', globalize.translate('VoiceGuidePosition', position, duration));
++        }
+         if (enableProgressByTimeOfDay) {
+             if (nowPlayingPositionSlider && !nowPlayingPositionSlider.dragging) {
+                 if (programStartDateMs && programEndDateMs) {
+@@ -886,10 +891,10 @@ export default function (view) {
+         buttonMuteIcon.classList.remove('volume_off', 'volume_up');
+ 
+         if (isMuted) {
+-            buttonMute.setAttribute('title', globalize.translate('Unmute') + ' (M)');
++            dom.setElementTitle(buttonMute, globalize.translate('Unmute') + ' (M)', globalize.translate('Unmute'));
+             buttonMuteIcon.classList.add('volume_off');
+         } else {
+-            buttonMute.setAttribute('title', globalize.translate('Mute') + ' (M)');
++            dom.setElementTitle(buttonMute, globalize.translate('Mute') + ' (M)', globalize.translate('Mute'));
+             buttonMuteIcon.classList.add('volume_up');
+         }
+ 
+diff --git a/src/apps/legacy/controllers/session/login/index.js b/src/apps/legacy/controllers/session/login/index.js
+index dad0b7d..137d549 100644
+--- a/src/apps/legacy/controllers/session/login/index.js
++++ b/src/apps/legacy/controllers/session/login/index.js
+@@ -16,6 +16,7 @@ import 'components/cardbuilder/card.scss';
+ import 'elements/emby-checkbox/emby-checkbox';
+ import Dashboard from 'utils/dashboard';
+ import toast from 'components/toast/toast';
++import { advanceLoginUsername } from 'components/tizenAccessibility';
+ import dialogHelper from 'components/dialogHelper/dialogHelper';
+ import baseAlert from 'components/alert';
+ import { getDefaultBackgroundClass } from 'components/cardbuilder/utils/builder';
+@@ -67,7 +68,7 @@ function authenticateQuickConnect(apiClient, targetUrl) {
+                 id: 'quickConnectAlert'
+             },
+             title: globalize.translate('QuickConnect'),
+-            text: globalize.translate('QuickConnectAuthorizeCode', json.Code)
++            text: globalize.translate('QuickConnectAuthorizeCode', String(json.Code).split('').join(' '))
+         });
+ 
+         const connectUrl = apiClient.getUrl('/QuickConnect/Connect?Secret=' + json.Secret);
+@@ -247,6 +248,7 @@ export default function (view, params) {
+         }
+     });
+     view.querySelector('.manualLoginForm').addEventListener('submit', function (e) {
++        if (browser.tizen && advanceLoginUsername(this, e)) return;
+         appSettings.enableAutoLogin(view.querySelector('.chkRememberLogin').checked);
+         authenticateUserByName(view, getApiClient(), getTargetUrl(), view.querySelector('#txtManualName').value, view.querySelector('#txtManualPassword').value);
+         e.preventDefault();
+diff --git a/src/components/accessibleItemName.js b/src/components/accessibleItemName.js
+new file mode 100644
+index 0000000..b1999c4
+--- /dev/null
++++ b/src/components/accessibleItemName.js
+@@ -0,0 +1,18 @@
++import globalize from '../lib/globalize';
++
++// Distinguish identically named episodes and expose visual status indicators.
++export function accessibleItemName(item) {
++    const parts = [];
++    if (item.Type === 'Episode') {
++        if (item.SeriesName) parts.push(item.SeriesName);
++        if (item.ParentIndexNumber != null) parts.push(globalize.translate('Season') + ' ' + item.ParentIndexNumber);
++        if (item.IndexNumber != null) parts.push(globalize.translate('Episode') + ' ' + item.IndexNumber);
++    }
++    if (item.ChannelNumber) parts.push(item.ChannelNumber);
++    if (item.Name) parts.push(item.Name);
++    if (item.Type === 'Movie' && item.ProductionYear) parts.push(String(item.ProductionYear));
++    if (item.Type === 'Audio' && item.Artists?.length) parts.push(item.Artists.join(', '));
++    if (item.UserData?.Played) parts.push(globalize.translate('Played'));
++    else if (item.UserData?.PlaybackPositionTicks > 0) parts.push(globalize.translate('ButtonResume'));
++    return parts.join(', ');
++}
+diff --git a/src/components/accessibleItemName.test.js b/src/components/accessibleItemName.test.js
+new file mode 100644
+index 0000000..ec5b011
+--- /dev/null
++++ b/src/components/accessibleItemName.test.js
+@@ -0,0 +1,28 @@
++import { describe, expect, test, vi } from 'vitest';
++import dictionary from '../strings/en-us.json';
++vi.mock('../lib/globalize', () => ({ default: { translate: key => dictionary[key] || key } }));
++import { accessibleItemName } from './accessibleItemName';
++
++describe('spoken media descriptions', () => {
++    test('identifies series, season, episode, title and resume status', () => {
++        expect(accessibleItemName({ Type: 'Episode', SeriesName: 'A series', ParentIndexNumber: 2,
++            IndexNumber: 4, Name: 'A title', UserData: { PlaybackPositionTicks: 100 } }))
++            .toBe('A series, Season 2, Episode 4, A title, Resume');
++    });
++    test('handles specials and episode zero', () => {
++        expect(accessibleItemName({ Type: 'Episode', ParentIndexNumber: 0, IndexNumber: 0, Name: 'Special' }))
++            .toBe('Season 0, Episode 0, Special');
++    });
++    test('distinguishes remakes and exposes watched state', () => {
++        expect(accessibleItemName({ Type: 'Movie', Name: 'A film', ProductionYear: 2020, UserData: { Played: true } }))
++            .toBe('A film, 2020, Played');
++    });
++    test('includes a channel number or track artist', () => {
++        expect(accessibleItemName({ Type: 'TvChannel', Name: 'BBC ONE', ChannelNumber: '101' })).toBe('101, BBC ONE');
++        expect(accessibleItemName({ Type: 'Audio', Name: 'A song', Artists: ['An artist'] })).toBe('A song, An artist');
++    });
++    test('returns text rather than HTML and tolerates absent metadata', () => {
++        expect(accessibleItemName({ Name: '<A & B>' })).toBe('<A & B>');
++        expect(accessibleItemName({})).toBe('');
++    });
++});
+diff --git a/src/components/actionSheet/actionSheet.ts b/src/components/actionSheet/actionSheet.ts
+index 7e766f4..fde003e 100644
+--- a/src/components/actionSheet/actionSheet.ts
++++ b/src/components/actionSheet/actionSheet.ts
+@@ -259,7 +259,8 @@ export function show(options: Options) {
+ 
+         // Check for null in case int 0 was passed in
+         const optionId = item.id == null || item.id === '' ? item.value : item.id;
+-        html += '<button' + autoFocus + ' is="emby-button" type="button" class="' + menuItemClass + '" data-id="' + optionId + '">';
++        const selectedState = item.selected == null ? '' : ' aria-pressed="' + item.selected + '"';
++        html += '<button' + autoFocus + selectedState + ' is="emby-button" type="button" class="' + menuItemClass + '" data-id="' + optionId + '">';
+ 
+         itemIcon = icons[i];
+ 
+diff --git a/src/components/cardbuilder/Card/CardWrapper.tsx b/src/components/cardbuilder/Card/CardWrapper.tsx
+index 91119ae..ce41ea9 100644
+--- a/src/components/cardbuilder/Card/CardWrapper.tsx
++++ b/src/components/cardbuilder/Card/CardWrapper.tsx
+@@ -5,16 +5,18 @@ import type { DataAttributes } from 'types/dataAttributes';
+ interface CardWrapperProps {
+     className: string;
+     dataAttributes: DataAttributes;
++    accessibleName: string;
+ }
+ 
+ const CardWrapper: FC<PropsWithChildren<CardWrapperProps>> = ({
+     className,
+     dataAttributes,
++    accessibleName,
+     children
+ }) => {
+     if (layoutManager.tv) {
+         return (
+-            <button className={className} {...dataAttributes}>
++            <button className={className} aria-label={accessibleName} {...dataAttributes}>
+                 {children}
+             </button>
+         );
+diff --git a/src/components/cardbuilder/Card/useCard.ts b/src/components/cardbuilder/Card/useCard.ts
+index d1ec9f4..f318d27 100644
+--- a/src/components/cardbuilder/Card/useCard.ts
++++ b/src/components/cardbuilder/Card/useCard.ts
+@@ -1,4 +1,5 @@
+ import classNames from 'classnames';
++import { accessibleItemName } from '../../accessibleItemName';
+ 
+ import layoutManager from 'components/layoutManager';
+ import { ItemAction } from 'constants/itemAction';
+@@ -106,6 +107,7 @@ function useCard({ item, cardOptions }: UseCardProps) {
+     );
+ 
+     const getCardWrapperProps = () => ({
++        accessibleName: accessibleItemName(item),
+         className: cardClass,
+         dataAttributes
+     });
+diff --git a/src/components/cardbuilder/cardBuilder.js b/src/components/cardbuilder/cardBuilder.js
+index 6055974..df1e8a6 100644
+--- a/src/components/cardbuilder/cardBuilder.js
++++ b/src/components/cardbuilder/cardBuilder.js
+@@ -17,6 +17,7 @@ import { ServerConnections } from 'lib/jellyfin-apiclient';
+ import { getItemTypeIcon, getLibraryIcon } from 'utils/image';
+ 
+ import focusManager from '../focusManager';
++import { accessibleItemName } from '../accessibleItemName';
+ import imageLoader from '../images/imageLoader';
+ import indicators from '../indicators/indicators';
+ import itemHelper from '../itemHelper';
+@@ -949,7 +950,7 @@ function buildCard(index, item, apiClient, options) {
+ 
+     if (tagName === 'button') {
+         actionAttribute = ' data-action="' + action + '"';
+-        ariaLabelAttribute = ` aria-label="${escapeHtml(item.Name)}"`;
++        ariaLabelAttribute = ` aria-label="${escapeHtml(accessibleItemName(item))}"`;
+     } else {
+         actionAttribute = '';
+     }
+diff --git a/src/components/dialogHelper/dialogHelper.js b/src/components/dialogHelper/dialogHelper.js
+index 6af9680..f7b34aa 100644
+--- a/src/components/dialogHelper/dialogHelper.js
++++ b/src/components/dialogHelper/dialogHelper.js
+@@ -1,4 +1,5 @@
+ import focusManager from '../focusManager';
++import { enhanceDialog } from '../tizenAccessibility';
+ import browser from '../../scripts/browser';
+ import layoutManager from '../layoutManager';
+ import inputManager from '../../scripts/inputManager';
+@@ -289,6 +290,7 @@ const getAnimationEndHandler = (dlg, callback) => function handler() {
+ 
+ function animateDialogOpen(dlg) {
+     const onAnimationFinish = () => {
++        enhanceDialog(dlg);
+         focusManager.pushScope(dlg);
+ 
+         if (dlg.getAttribute('data-autofocus') === 'true') {
+diff --git a/src/components/listview/List/useList.ts b/src/components/listview/List/useList.ts
+index 260d958..8f7ad0d 100644
+--- a/src/components/listview/List/useList.ts
++++ b/src/components/listview/List/useList.ts
+@@ -1,4 +1,5 @@
+ import classNames from 'classnames';
++import { accessibleItemName } from '../../accessibleItemName';
+ 
+ import layoutManager from 'components/layoutManager';
+ import { ItemAction } from 'constants/itemAction';
+@@ -53,7 +54,7 @@ function useList({ item, listOptions }: UseListProps) {
+ 
+     const getListdWrapperProps = () => ({
+         className: listWrapperClass,
+-        title: item.Name,
++        title: accessibleItemName(item),
+         action,
+         dataAttributes
+     });
+diff --git a/src/components/listview/listview.js b/src/components/listview/listview.js
+index 4e1e49e..f99b4f0 100644
+--- a/src/components/listview/listview.js
++++ b/src/components/listview/listview.js
+@@ -9,6 +9,7 @@ import escapeHtml from 'escape-html';
+ import markdownIt from 'markdown-it';
+ 
+ import { ItemAction } from 'constants/itemAction';
++import { accessibleItemName } from '../accessibleItemName';
+ 
+ import { getDefaultBackgroundClass } from '../cardbuilder/utils/builder';
+ import itemHelper from '../itemHelper';
+@@ -258,7 +259,8 @@ export function getListViewHtml(options) {
+             cssClass += ' listItem-withContentWrapper';
+         }
+ 
+-        html += `<${outerTagName} class="${cssClass}"${playlistItemId} data-action="${action}" data-isfolder="${item.IsFolder}" data-id="${item.Id}" data-serverid="${item.ServerId}" data-type="${item.Type}"${mediaTypeData}${collectionTypeData}${channelIdData}${positionTicksData}${collectionIdData}${playlistIdData}>`;
++        const accessibleLabel = clickEntireItem ? ' aria-label="' + escapeHtml(accessibleItemName(item)) + '"' : '';
++        html += `<${outerTagName} class="${cssClass}"${accessibleLabel}${playlistItemId} data-action="${action}" data-isfolder="${item.IsFolder}" data-id="${item.Id}" data-serverid="${item.ServerId}" data-type="${item.Type}"${mediaTypeData}${collectionTypeData}${channelIdData}${positionTicksData}${collectionIdData}${playlistIdData}>`;
+ 
+         if (enableContentWrapper) {
+             html += '<div class="listItem-content">';
+diff --git a/src/components/loading/loading.ts b/src/components/loading/loading.ts
+index 60333f5..4d3e69b 100644
+--- a/src/components/loading/loading.ts
++++ b/src/components/loading/loading.ts
+@@ -5,6 +5,8 @@ let loader: HTMLDivElement | undefined;
+ function createLoader(): HTMLDivElement {
+     const elem = document.createElement('div');
+     elem.setAttribute('dir', 'ltr');
++    elem.setAttribute('role', 'status');
++    elem.setAttribute('aria-label', 'Loading');
+     elem.classList.add('docspinner');
+     elem.classList.add('mdl-spinner');
+ 
+diff --git a/src/components/tizenAccessibility.js b/src/components/tizenAccessibility.js
+new file mode 100644
+index 0000000..a654b52
+--- /dev/null
++++ b/src/components/tizenAccessibility.js
+@@ -0,0 +1,144 @@
++import globalize from '../lib/globalize';
++
++// Use Samsung's native Voice Guide. Do not intercept keys or run a second TTS
++// engine: the existing remote navigation and the user's speech settings apply.
++// These keys are Samsung/Jellyfin material-icon class names.
++/* eslint-disable @typescript-eslint/naming-convention */
++const iconLabels = {
++    arrow_back: 'ButtonBack', chevron_left: 'ButtonBack', home: 'Home',
++    menu: 'Menu', search: 'Search', person: 'Settings', settings: 'Settings',
++    play_arrow: 'Play', pause: 'ButtonPause', stop: 'ButtonStop',
++    fast_rewind: 'Rewind', fast_forward: 'FastForward',
++    skip_previous: 'PreviousTrack', skip_next: 'NextTrack',
++    closed_caption: 'Subtitles', audiotrack: 'Audio',
++    more_vert: 'ButtonMore', sort_by_alpha: 'Sort', filter_alt: 'Filter',
++    cast: 'HeaderPlayOn', groups: 'ButtonSyncPlay',
++    music_note: 'VoiceGuideNowPlaying', volume_up: 'Mute', volume_off: 'Unmute',
++    arrow_forward: 'Next', fiber_manual_record: 'Record'
++};
++/* eslint-enable @typescript-eslint/naming-convention */
++const inferredNames = new WeakMap();
++let dialogTextId = 0;
++
++export function advanceLoginUsername(form, event, doc = document) {
++    const username = form.querySelector('#txtManualName');
++    const password = form.querySelector('#txtManualPassword');
++    if (username && password && doc.activeElement === username) {
++        // Samsung IME Done submits the form while the username still has
++        // focus. Finish that field and move to Password instead of attempting
++        // authentication with an empty password.
++        event.preventDefault();
++        password.focus();
++        return true;
++    }
++    return false;
++}
++
++function text(element) {
++    return element?.textContent?.replace(/\s+/g, ' ').trim() || '';
++}
++
++export function enhanceControl(element) {
++    if (!element || element.nodeType !== 1) return;
++    if (element.matches('input[type="hidden"]')) return;
++    const isControl = element.matches('button, a, input, select, textarea, [role="button"], [role="tab"]');
++    if (!isControl) return;
++
++    // Preserve authored labels and linked form labels, including passwords.
++    if (element.hasAttribute('aria-label') || element.hasAttribute('aria-labelledby')
++        || element.labels?.length) return;
++
++    let label = element.getAttribute('title') || element.getAttribute('placeholder');
++    const content = element.cloneNode(true);
++    content.querySelectorAll('[aria-hidden="true"], .material-icons').forEach(icon => {
++        icon.remove();
++    });
++    if (!label && !text(content)) {
++        const icon = element.querySelector('.material-icons');
++        const key = Object.keys(iconLabels).find(name => icon?.classList.contains(name));
++        if (key) label = globalize.translate(iconLabels[key]);
++    }
++    if (label) {
++        element.setAttribute('aria-label', label);
++        inferredNames.set(element, label);
++    }
++}
++
++export function enhanceDialog(dialog) {
++    dialog.setAttribute('role', 'dialog');
++    if (dialog.hasAttribute('modal')) dialog.setAttribute('aria-modal', 'true');
++    if (!dialog.hasAttribute('aria-label') && !dialog.hasAttribute('aria-labelledby')) {
++        const heading = dialog.querySelector('h1, h2, h3, .dialogTitle, .actionSheetTitle');
++        if (text(heading)) dialog.setAttribute('aria-label', text(heading));
++    }
++    const message = dialog.querySelector('.formDialogContent .text');
++    if (text(message) && !message.querySelector('input, button, select, textarea, a')) {
++        // Alerts otherwise focus only "Got it", leaving their instructions or
++        // Quick Connect code unreachable by the TV's directional navigation.
++        message.classList.add('focusable');
++        message.setAttribute('tabindex', '0');
++        message.setAttribute('autofocus', '');
++        if (!message.id) message.id = 'tizenDialogText' + (++dialogTextId);
++        if (!dialog.hasAttribute('aria-describedby')) dialog.setAttribute('aria-describedby', message.id);
++        dialog.querySelectorAll('button[autofocus]').forEach(button => {
++            button.removeAttribute('autofocus');
++        });
++    }
++}
++
++export function startTizenAccessibility(doc = document) {
++    let stopped = false;
++    let pending = false;
++    const roots = new Set();
++    function enhance(root) {
++        if (root.nodeType !== 1) return;
++        enhanceControl(root);
++        root.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="tab"]')
++            .forEach(enhanceControl);
++        if (root.matches('.dialogContainer > .focuscontainer')) enhanceDialog(root);
++        root.querySelectorAll('.dialogContainer > .focuscontainer').forEach(enhanceDialog);
++    }
++    function flush() {
++        pending = false;
++        if (stopped) return;
++        roots.forEach(enhance);
++        roots.clear();
++    }
++    const observer = new MutationObserver(records => {
++        records.forEach(record => {
++            if (record.type === 'childList') {
++                record.addedNodes.forEach(node => {
++                    if (node.nodeType === 1) roots.add(node);
++                });
++            } else if (record.attributeName === 'title') {
++                // Titles of play/pause, mute and fullscreen controls change.
++                // Only refresh a label that this adapter previously inferred.
++                const element = record.target;
++                if (inferredNames.has(element)
++                    && element.getAttribute('aria-label') === inferredNames.get(element)) {
++                    element.removeAttribute('aria-label');
++                }
++                roots.add(element);
++            }
++        });
++        if (!pending && roots.size) {
++            pending = true;
++            Promise.resolve().then(flush);
++        }
++    });
++    enhance(doc.body);
++    observer.observe(doc.body, { childList: true, subtree: true,
++        attributes: true, attributeFilter: ['title'], attributeOldValue: true });
++    function onFocus(event) {
++        enhanceControl(event.target);
++        const startup = doc.getElementById('tizenVoiceGuideStartup');
++        if (startup && event.target !== startup) startup.remove();
++    }
++    doc.addEventListener('focus', onFocus, true);
++    return () => {
++        stopped = true;
++        observer.disconnect();
++        doc.removeEventListener('focus', onFocus, true);
++        roots.clear();
++    };
++}
+diff --git a/src/components/tizenAccessibility.test.js b/src/components/tizenAccessibility.test.js
+new file mode 100644
+index 0000000..7dd47a3
+--- /dev/null
++++ b/src/components/tizenAccessibility.test.js
+@@ -0,0 +1,133 @@
++import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
++import dictionary from '../strings/en-us.json';
++
++vi.mock('../lib/globalize', () => ({ default: { translate: key => dictionary[key] || key } }));
++import { advanceLoginUsername, enhanceControl, enhanceDialog, startTizenAccessibility } from './tizenAccessibility';
++
++let stopAdapter;
++beforeEach(() => {
++    document.body.innerHTML = '';
++});
++afterEach(() => {
++    stopAdapter?.();
++    stopAdapter = null;
++});
++const settle = async () => {
++    await new Promise(resolve => setTimeout(resolve, 0));
++};
++
++describe('Samsung Voice Guide semantics', () => {
++    test.each(['', 'existing-value'])('username Done advances without submitting credentials (%s)', passwordValue => {
++        document.body.innerHTML = '<form><input id="txtManualName"><input id="txtManualPassword" type="password"><button>Sign In</button></form>';
++        const form = document.querySelector('form');
++        const username = form.querySelector('#txtManualName');
++        const password = form.querySelector('#txtManualPassword');
++        password.value = passwordValue;
++        username.focus();
++        const event = new Event('submit', { cancelable: true });
++        expect(advanceLoginUsername(form, event)).toBe(true);
++        expect(event.defaultPrevented).toBe(true);
++        expect(document.activeElement).toBe(password);
++        expect(password.value).toBe(passwordValue);
++    });
++
++    test.each(['#txtManualPassword', 'button'])('password Done and explicit Sign In still submit (%s)', selector => {
++        document.body.innerHTML = '<form><input id="txtManualName"><input id="txtManualPassword" type="password"><button>Sign In</button></form>';
++        const form = document.querySelector('form');
++        form.querySelector(selector).focus();
++        const event = new Event('submit', { cancelable: true });
++        expect(advanceLoginUsername(form, event)).toBe(false);
++        expect(event.defaultPrevented).toBe(false);
++    });
++    test.each([
++        ['arrow_back', 'Back'], ['home', 'Home'], ['menu', 'Menu'],
++        ['search', 'Search'], ['person', 'Settings'], ['play_arrow', 'Play'],
++        ['pause', 'Pause'], ['stop', 'Stop'], ['closed_caption', 'Subtitles'],
++        ['audiotrack', 'Audio'], ['more_vert', 'More'], ['cast', 'Play On'],
++        ['groups', 'SyncPlay'], ['music_note', 'Now playing']
++    ])('names the %s icon without speaking the icon font', (icon, label) => {
++        document.body.innerHTML = `<button><span class="material-icons ${icon}" aria-hidden="true">${icon}</span></button>`;
++        enhanceControl(document.querySelector('button'));
++        expect(document.querySelector('button').getAttribute('aria-label')).toBe(label);
++    });
++
++    test('preserves authored names and form labels, without exposing password values', () => {
++        document.body.innerHTML = '<button aria-label="Existing" title="Other"></button><label for="pw">Password</label><input id="pw" type="password" value="never-speak-this"><input type="hidden" value="token">';
++        stopAdapter = startTizenAccessibility();
++        expect(document.querySelector('button').getAttribute('aria-label')).toBe('Existing');
++        expect(document.querySelector('#pw').hasAttribute('aria-label')).toBe(false);
++        expect(document.body.innerHTML).not.toContain('aria-label="never-speak-this"');
++        expect(document.querySelector('[type="hidden"]').hasAttribute('aria-label')).toBe(false);
++    });
++
++    test('names controls inserted after login or a route change', async () => {
++        stopAdapter = startTizenAccessibility();
++        document.body.innerHTML = '<button title="Subtitles"></button><input placeholder="Search your library">';
++        await settle();
++        expect(document.querySelector('button').getAttribute('aria-label')).toBe('Subtitles');
++        expect(document.querySelector('input').getAttribute('aria-label')).toBe('Search your library');
++    });
++
++    test('updates inferred names when the title changes without clobbering an authored name', async () => {
++        document.body.innerHTML = '<button title="Play"></button><button title="Old" aria-label="Explicit"></button>';
++        stopAdapter = startTizenAccessibility();
++        const [play, authored] = document.querySelectorAll('button');
++        play.title = 'Pause';
++        authored.title = 'New';
++        await settle();
++        expect(play.getAttribute('aria-label')).toBe('Pause');
++        expect(authored.getAttribute('aria-label')).toBe('Explicit');
++    });
++
++    test('retains actual keyboard focus and leaves arrow and Back handling untouched', () => {
++        document.body.innerHTML = '<button id="tizenVoiceGuideStartup" autofocus>Starting</button><button title="Play"></button><button title="Settings"></button>';
++        stopAdapter = startTizenAccessibility();
++        const play = document.querySelector('[title="Play"]');
++        play.focus();
++        expect(document.activeElement).toBe(play);
++        expect(document.getElementById('tizenVoiceGuideStartup')).toBeNull();
++        for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Back']) {
++            const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
++            play.dispatchEvent(event);
++            expect(event.defaultPrevented).toBe(false);
++            expect(document.activeElement).toBe(play);
++        }
++    });
++
++    test('makes a modal track-selection dialog discoverable by name', () => {
++        document.body.innerHTML = '<div modal><h2>Audio tracks</h2><button>English audio description</button></div>';
++        const dialog = document.body.firstElementChild;
++        enhanceDialog(dialog);
++        expect(dialog.getAttribute('role')).toBe('dialog');
++        expect(dialog.getAttribute('aria-modal')).toBe('true');
++        expect(dialog.getAttribute('aria-label')).toBe('Audio tracks');
++    });
++
++    test('focuses the Quick Connect instructions before its dismiss button', () => {
++        document.body.innerHTML = '<div modal><h1>Quick Connect</h1><div class="formDialogContent"><div class="text">Enter 1 2 3 4 5 6 on your other device</div></div><button autofocus>Got it</button></div>';
++        const dialog = document.body.firstElementChild;
++        enhanceDialog(dialog);
++        const message = dialog.querySelector('.text');
++        expect(message.tabIndex).toBe(0);
++        expect(message.hasAttribute('autofocus')).toBe(true);
++        expect(dialog.querySelector('button').hasAttribute('autofocus')).toBe(false);
++        expect(dialog.getAttribute('aria-describedby')).toBe(message.id);
++    });
++
++    test('preserves form focus in a dialog with interactive content', () => {
++        document.body.innerHTML = '<div><div class="formDialogContent"><div class="text">Username<input></div></div><button autofocus>Save</button></div>';
++        const dialog = document.body.firstElementChild;
++        enhanceDialog(dialog);
++        expect(dialog.querySelector('button').hasAttribute('autofocus')).toBe(true);
++        expect(dialog.querySelector('.text').hasAttribute('tabindex')).toBe(false);
++    });
++
++    test('does not create speech timers or change settings after cleanup', async () => {
++        stopAdapter = startTizenAccessibility();
++        stopAdapter();
++        stopAdapter = null;
++        document.body.innerHTML = '<button title="Later"></button>';
++        await settle();
++        expect(document.querySelector('button').hasAttribute('aria-label')).toBe(false);
++    });
++});
+diff --git a/src/components/toast/toast.ts b/src/components/toast/toast.ts
+index 7f85757..fb829d8 100644
+--- a/src/components/toast/toast.ts
++++ b/src/components/toast/toast.ts
+@@ -10,6 +10,9 @@ function getToastContainer() {
+     if (!toastContainer) {
+         toastContainer = document.createElement('div');
+         toastContainer.classList.add('toastContainer');
++        toastContainer.setAttribute('role', 'status');
++        toastContainer.setAttribute('aria-live', 'polite');
++        toastContainer.setAttribute('aria-atomic', 'true');
+         document.body.appendChild(toastContainer);
+     }
+ 
+diff --git a/src/elements/emby-playstatebutton/emby-playstatebutton.js b/src/elements/emby-playstatebutton/emby-playstatebutton.js
+index 1774d4e..b3dd887 100644
+--- a/src/elements/emby-playstatebutton/emby-playstatebutton.js
++++ b/src/elements/emby-playstatebutton/emby-playstatebutton.js
+@@ -55,6 +55,7 @@ function setState(button, played, updateAttribute) {
+ }
+ 
+ function setTitle(button, itemType, played) {
++    button.setAttribute('aria-pressed', String(played));
+     if (itemType !== 'AudioBook') {
+         button.title = played ? globalize.translate('Watched') : globalize.translate('MarkPlayed');
+     } else {
+diff --git a/src/elements/emby-ratingbutton/emby-ratingbutton.js b/src/elements/emby-ratingbutton/emby-ratingbutton.js
+index fc98db4..c166736 100644
+--- a/src/elements/emby-ratingbutton/emby-ratingbutton.js
++++ b/src/elements/emby-ratingbutton/emby-ratingbutton.js
+@@ -58,6 +58,7 @@ function setState(button, likes, isFavorite, updateAttribute) {
+ }
+ 
+ function setTitle(button, isFavorite) {
++    button.setAttribute('aria-pressed', String(isFavorite));
+     button.title = isFavorite ? globalize.translate('Favorite') : globalize.translate('AddToFavorites');
+ 
+     const text = button.querySelector('.button-text');
+diff --git a/src/elements/emby-tabs/emby-tabs.js b/src/elements/emby-tabs/emby-tabs.js
+index a1e9ff2..f1ee3a6 100644
+--- a/src/elements/emby-tabs/emby-tabs.js
++++ b/src/elements/emby-tabs/emby-tabs.js
+@@ -13,6 +13,7 @@ const activeButtonClass = buttonClass + '-active';
+ 
+ function setActiveTabButton(newButton) {
+     newButton.classList.add(activeButtonClass);
++    newButton.setAttribute('aria-pressed', 'true');
+ }
+ 
+ function getTabPanel() {
+@@ -72,6 +73,7 @@ function onClick(e) {
+     if (tabButton && tabButton !== current) {
+         if (current) {
+             current.classList.remove(activeButtonClass);
++            current.setAttribute('aria-pressed', 'false');
+         }
+ 
+         const previousIndex = current ? parseInt(current.getAttribute('data-index'), 10) : null;
+@@ -259,6 +261,7 @@ EmbyTabs.selectedIndex = function (selected, triggerEvent) {
+ 
+         if (current !== selected && currentTabButton) {
+             currentTabButton.classList.remove(activeButtonClass);
++            currentTabButton.setAttribute('aria-pressed', 'false');
+         }
+     } else {
+         onClick.call(tabs, {
+diff --git a/src/index.html b/src/index.html
+index cf9c21c..f13a13f 100644
+--- a/src/index.html
++++ b/src/index.html
+@@ -87,6 +87,8 @@
+     </style>
+ </head>
+ <body dir="ltr">
++    <!-- Samsung requires launch-time autofocus to initialise Voice Guide. -->
++    <button id="tizenVoiceGuideStartup" type="button" autofocus class="noautofocus" style="position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Jellyfin is starting</button>
+     <div id="reactRoot">
+         <div class="splashLogo"></div>
+     </div>
+diff --git a/src/index.jsx b/src/index.jsx
+index ca6b67c..d19304f 100644
+--- a/src/index.jsx
++++ b/src/index.jsx
+@@ -2,6 +2,7 @@
+ import 'lib/legacy';
+ 
+ import React from 'react';
++import { startTizenAccessibility } from './components/tizenAccessibility';
+ import { createRoot } from 'react-dom/client';
+ 
+ // NOTE: We need to import this first to initialize the connection
+@@ -87,6 +88,7 @@ build: ${__JF_BUILD_VERSION__}`);
+ 
+     // Load the translation dictionary
+     await loadCoreDictionary();
++    if (window.tizen) startTizenAccessibility();
+     // Update localization on user changes
+     Events.on(ServerConnections, 'localusersignedin', globalize.updateCurrentCulture);
+     Events.on(ServerConnections, 'localusersignedout', globalize.updateCurrentCulture);
+diff --git a/src/strings/en-gb.json b/src/strings/en-gb.json
+index a0a6eb5..fae52c8 100644
+--- a/src/strings/en-gb.json
++++ b/src/strings/en-gb.json
+@@ -1945,5 +1945,8 @@
+     "HlsAudioSeekStrategy": "The strategy to use when seeking in HLS streams.",
+     "LabelHlsAudioSeekStrategy": "Audio seek strategy.",
+     "MessageForgotPasswordRedirect": "You have been redirected to an external provider for the password reset.",
+-    "MessageItemMetadataLocked": "This item's metadata is locked. Unlock it before using the identify feature."
++    "MessageItemMetadataLocked": "This item's metadata is locked. Unlock it before using the identify feature.",
++    "VoiceGuideVolume": "Volume",
++    "VoiceGuideNowPlaying": "Now playing",
++    "VoiceGuidePosition": "{0} of {1}"
+ }
+diff --git a/src/strings/en-us.json b/src/strings/en-us.json
+index 596b96f..1b1c7c4 100755
+--- a/src/strings/en-us.json
++++ b/src/strings/en-us.json
+@@ -1945,5 +1945,8 @@
+     "LabelPlayerSizes": "Player sizes",
+     "LabelPlaybackQuality": "Frame dropped / corrupted",
+     "AudioLanguages": "Audio languages",
+-    "SubtitleLanguages": "Subtitle languages"
++    "SubtitleLanguages": "Subtitle languages",
++    "VoiceGuideVolume": "Volume",
++    "VoiceGuideNowPlaying": "Now playing",
++    "VoiceGuidePosition": "{0} of {1}"
+ }

@@ -80,6 +80,26 @@
         console.log.apply(console, arguments);
     }
 
+    function applyContainerSupport(profile) {
+        var video = document.createElement('video');
+        var supportsMkv = video.canPlayType('video/x-matroska').replace(/no/, '')
+            || video.canPlayType('video/mkv').replace(/no/, '');
+        if (supportsMkv) return profile;
+
+        // Recent jellyfin-web profiles assume all Tizen HTML players support
+        // MKV and no longer honour enableMkvProgressive:false. On affected TVs
+        // that stalls playback before the OSD opens. Let the server remux to
+        // a supported container instead; do not remove any codec capability.
+        profile.DirectPlayProfiles = (profile.DirectPlayProfiles || []).map(function (entry) {
+            if (entry.Type !== 'Video') return entry;
+            var containers = String(entry.Container || '').split(',').filter(function (container) {
+                return container !== 'mkv' && container !== 'matroska';
+            });
+            return containers.length ? Object.assign({}, entry, { Container: containers.join(',') }) : null;
+        }).filter(function (entry) { return entry !== null; });
+        return profile;
+    }
+
     window.NativeShell = {
         AppHost: {
             init: function () {
@@ -121,12 +141,12 @@
 
             getDeviceProfile: function (profileBuilder) {
                 postMessage('AppHost.getDeviceProfile');
-                return profileBuilder({ enableMkvProgressive: false, enableSsaRender: true });
+                return applyContainerSupport(profileBuilder({ enableMkvProgressive: false, enableSsaRender: true }));
             },
 
             getSyncProfile: function (profileBuilder) {
                 postMessage('AppHost.getSyncProfile');
-                return profileBuilder({ enableMkvProgressive: false });
+                return applyContainerSupport(profileBuilder({ enableMkvProgressive: false }));
             },
 
             screen: function () {
@@ -199,4 +219,28 @@
     }
 
     window.addEventListener('viewshow', updateKeys);
+
+    var restoreFocusTimer;
+    function refreshRestoredVoiceGuide(event) {
+        clearTimeout(restoreFocusTimer);
+        if (!event.detail || !event.detail.isRestored || location.hash.indexOf('#/video') === 0) return;
+        var view = event.target;
+        var element = document.activeElement;
+        if (!element || element === document.body || !view.contains(element)
+            || element.matches('input, textarea, select, [contenteditable="true"]')) return;
+
+        // On this TV a cached view regains DOM focus before Voice Guide sees
+        // its restored accessibility tree. Refresh the same control after the
+        // view settles. Never move focus back if the user has already moved on.
+        restoreFocusTimer = setTimeout(function () {
+            if (document.activeElement !== element || !view.contains(element) || element.offsetParent === null) return;
+            element.blur();
+            requestAnimationFrame(function () {
+                if (document.activeElement === document.body && view.contains(element) && element.offsetParent !== null) {
+                    element.focus({ preventScroll: true });
+                }
+            });
+        }, 180);
+    }
+    window.addEventListener('viewshow', refreshRestoredVoiceGuide);
 })();
